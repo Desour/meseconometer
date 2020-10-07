@@ -69,6 +69,62 @@ local function save_event(meta, port_abcd, event)
 	}))
 end
 
+-- show the main formspec, eg. when rightclicked
+-- @param pos: pos of meseconometer
+-- @param playername: player to show the formspec to
+local function show_formspec_main(pos, playername)
+	local meta = minetest.get_meta(pos)
+
+	local act_port = meta:get_int("activate_port")
+	if not act_port or not (act_port >= 1 and act_port <= 4) then
+		act_port = 1
+		meta:set_int("activate_port", 1)
+	end
+
+	local event_count = meta:get_int("event_index")
+	if not event_count or not (event_count >= 1) then
+		event_count = 0
+	end
+
+	-- get all events and concat to table_cells
+	-- if no events, 2nd row will be - - -
+	local table_cells = {"-,-,-"}
+
+	if meta:get_int("version") == 1 then
+		for i = 1, event_count do
+			local cell = minetest.parse_json(meta:get_string("event_nr"..i))
+			if type(cell) == "table" then
+				table_cells[(i - 1) * 3 + 1] = minetest.formspec_escape(cell[1])
+				table_cells[(i - 1) * 3 + 2] = minetest.formspec_escape(cell[2])
+				table_cells[(i - 1) * 3 + 3] = minetest.formspec_escape(cell[3])
+			else
+				table_cells[(i - 1) * 3 + 1] = "error"
+				table_cells[(i - 1) * 3 + 2] = "error"
+				table_cells[(i - 1) * 3 + 3] = "error"
+			end
+		end
+	else
+		table_cells = {"<can not show data from other version>"}
+	end
+
+	table_cells = table.concat(table_cells, ",")
+
+	minetest.show_formspec(playername, "meseconometer:fs",
+		"formspec_version[3]"..
+		"size[10,10]"..
+		"button[7.5,7.75;2,0.75;btn_raw;Get Raw Data]".. -- todo
+		"button[7.5,6.75;2,0.75;btn_info;?]".. -- todo
+		"button_exit[7.5,8.75;2,0.75;btn_close;Close]"..
+		"label[7.5,1.25;Activation Port:]"..
+		"dropdown[7.5,1.5;2,0.5;activate_port;A,B,C,D;"..act_port.."]"..
+		"label[0.5,0.75;Meassured Events:]"..
+		"tablecolumns[text,align=right,tooltip=\"a<number>\" means that the "..
+			"event happened AFTER the step;text,align=center;text]"..
+		"table[0.5,1;6.5,8.5;table;Step,Port,Event,"..table_cells..";]"
+	)
+	open_formspecs[playername] = vector.new(pos)
+end
+
 mesecon.register_node("meseconometer:meseconometer", {
 	description = "Meseconometer",
 	inventory_image = "meseconometer_meseconometer_top.png",
@@ -95,56 +151,9 @@ mesecon.register_node("meseconometer:meseconometer", {
 			return
 		end
 		local playername = clicker:get_player_name()
-		local meta = minetest.get_meta(pos)
 
-		local act_port = meta:get_int("activate_port")
-		if not act_port or not (act_port >= 1 and act_port <= 4) then
-			act_port = 1
-			meta:set_int("activate_port", 1)
-		end
+		show_formspec_main(pos, playername)
 
-		local event_count = meta:get_int("event_index")
-		if not event_count or not (event_count >= 1) then
-			event_count = 0
-		end
-
-		-- get all events and concat to table_cells
-		-- if no events, 2nd row will be - - -
-		local table_cells = {"-,-,-"}
-
-		if meta:get_int("version") == 1 then
-			for i = 1, event_count do
-				local cell = minetest.parse_json(meta:get_string("event_nr"..i))
-				if type(cell) == "table" then
-					table_cells[(i - 1) * 3 + 1] = minetest.formspec_escape(cell[1])
-					table_cells[(i - 1) * 3 + 2] = minetest.formspec_escape(cell[2])
-					table_cells[(i - 1) * 3 + 3] = minetest.formspec_escape(cell[3])
-				else
-					table_cells[(i - 1) * 3 + 1] = "error"
-					table_cells[(i - 1) * 3 + 2] = "error"
-					table_cells[(i - 1) * 3 + 3] = "error"
-				end
-			end
-		else
-			table_cells = {"<can not show data from other version>"}
-		end
-
-		table_cells = table.concat(table_cells, ",")
-
-		minetest.show_formspec(playername, "meseconometer:fs",
-			"formspec_version[3]"..
-			"size[10,10]"..
-			"button[7.5,7.75;2,0.75;btn_raw;Get Raw Data]".. -- todo
-			"button[7.5,6.75;2,0.75;btn_info;?]".. -- todo
-			"button_exit[7.5,8.75;2,0.75;btn_close;Close]"..
-			"label[7.5,1.25;Activation Port:]"..
-			"dropdown[7.5,1.5;2,0.5;activate_port;A,B,C,D;"..act_port.."]"..
-			"label[0.5,0.75;Meassured Events:]"..
-			"tablecolumns[text,align=right,tooltip=\"a<number>\" means that the "..
-				"event happened AFTER the step;text,align=center;text]"..
-			"table[0.5,1;6.5,8.5;table;Step,Port,Event,"..table_cells..";]"
-		)
-		open_formspecs[playername] = vector.new(pos)
 		return itemstack
 	end,
 
