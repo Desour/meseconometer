@@ -36,7 +36,7 @@ end)
 --
 -- events are stored each as json of this table: {step, port_abcd, event}
 -- step: the step of the event relative to steptimer_start
---       has prefix "a" if not in a globalstep (abrv. for "after", I guess)
+--       has prefix "a" if not in a globalstep (abrev. for "after")
 -- port_abcd: the port (A-D) of the event
 -- event: name of the event
 
@@ -124,6 +124,74 @@ local function show_formspec_main(pos, playername)
 	)
 	open_formspecs[playername] = vector.new(pos)
 end
+
+-- show the info formspec
+local function show_formspec_info(pos, playername)
+	minetest.show_formspec(playername, "meseconometer:fs_info",
+		"formspec_version[3]"..
+		"size[10,10]"..
+		"button[7.5,7.75;2,0.75;btn_back;Back]"..
+		"button_exit[7.5,8.75;2,0.75;btn_close;Close]"..
+		"label[0.5,0.75;Information:]"..
+		"table[0.5,1;6.5,8.5;table;"..
+			"Events will only be saved if the activation port is,activated via mesecons.,"..
+			"Times are in globalsteps."..
+		";]"
+	)
+
+	open_formspecs[playername] = vector.new(pos)
+end
+
+-- handle foemspec events
+local function handle_formspec_main(pos, playername, fields)
+	local act_port = abcd[fields.activate_port]
+	if act_port then
+		local meta = minetest.get_meta(pos)
+		meta:set_int("activate_port", act_port)
+	end
+
+	if fields.btn_info then
+		show_formspec_info(pos, playername)
+	end
+end
+
+local function handle_formspec_info(pos, playername, fields)
+	if fields.btn_back then
+		show_formspec_main(pos, playername)
+	end
+end
+
+minetest.register_on_player_receive_fields(function(player, formname, fields)
+	if type(formname) ~= "string" or formname:sub(1, 16) ~= "meseconometer:fs" then
+		return
+	end
+
+	if not player or not player:is_player() then
+		return true
+	end
+	local playername = player:get_player_name()
+
+	local pos = open_formspecs[playername]
+	if not pos then
+		return true
+	elseif fields.quit then
+		open_formspecs[playername] = nil
+	end
+
+	if formname == "meseconometer:fs" then
+		handle_formspec_main(pos, playername, fields)
+	elseif formname == "meseconometer:fs_info" then
+		handle_formspec_info(pos, playername, fields)
+	end
+
+	return true
+end)
+
+minetest.register_on_leaveplayer(function(player)
+	if player and player:is_player() then
+		open_formspecs[player:get_player_name()] = nil
+	end
+end)
 
 mesecon.register_node("meseconometer:meseconometer", {
 	description = "Meseconometer",
@@ -240,36 +308,3 @@ mesecon.register_node("meseconometer:meseconometer", {
 		minetest.log("warning", "Warning: meseconometer:meseconometer_on was constructed")
 	end,
 })
-
--- handle foemspec events
-minetest.register_on_player_receive_fields(function(player, formname, fields)
-	if formname ~= "meseconometer:fs" then
-		return
-	end
-
-	if not player or not player:is_player() then
-		return true
-	end
-	local playername = player:get_player_name()
-
-	local pos = open_formspecs[playername]
-	if not pos then
-		return true
-	elseif fields.quit then
-		open_formspecs[playername] = nil
-	end
-
-	local act_port = abcd[fields.activate_port]
-	if act_port then
-		local meta = minetest.get_meta(pos)
-		meta:set_int("activate_port", act_port)
-	end
-
-	return true
-end)
-
-minetest.register_on_leaveplayer(function(player)
-	if player and player:is_player() then
-		open_formspecs[player:get_player_name()] = nil
-	end
-end)

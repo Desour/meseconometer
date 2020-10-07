@@ -20,10 +20,8 @@ The textures were made from textures from the mesecons mod, (see https://github.
 Everything else: CC0  
 
 todo list:  
-- Maybe add a help formspec page.  
 - Add a proper description and co.  
 - Output the meassurements in a textarea to copy.  
-- Make code more readable.  
 - Maybe store the stepcounter in world-/modstorage. (Currently when you leave a meseconometer on and rejoin, the step number becomes very long.)  
 - Digiline support?  
 - Display real time?  
