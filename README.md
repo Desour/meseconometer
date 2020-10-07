@@ -21,7 +21,6 @@ Everything else: CC0
 
 todo list:  
 - Add a proper description and co.  
-- Output the meassurements in a textarea to copy.  
 - Maybe store the stepcounter in world-/modstorage. (Currently when you leave a meseconometer on and rejoin, the step number becomes very long.)  
 - Digiline support?  
 - Display real time?  

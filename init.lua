@@ -112,8 +112,8 @@ local function show_formspec_main(pos, playername)
 	minetest.show_formspec(playername, "meseconometer:fs",
 		"formspec_version[3]"..
 		"size[10,10]"..
-		"button[7.5,7.75;2,0.75;btn_raw;Get Raw Data]".. -- todo
-		"button[7.5,6.75;2,0.75;btn_info;?]".. -- todo
+		"button[7.5,7.75;2,0.75;btn_rawdata;Get Raw Data]"..
+		"button[7.5,6.75;2,0.75;btn_info;?]"..
 		"button_exit[7.5,8.75;2,0.75;btn_close;Close]"..
 		"label[7.5,1.25;Activation Port:]"..
 		"dropdown[7.5,1.5;2,0.5;activate_port;A,B,C,D;"..act_port.."]"..
@@ -138,7 +138,37 @@ local function show_formspec_info(pos, playername)
 			"Times are in globalsteps."..
 		";]"
 	)
+	open_formspecs[playername] = vector.new(pos)
+end
 
+-- show the raw data for copying
+local function show_formspec_rawdata(pos, playername)
+	local meta = minetest.get_meta(pos)
+
+	local event_count = meta:get_int("event_index")
+	if not event_count or not (event_count >= 1) then
+		event_count = 0
+	end
+
+	-- get all events and concat
+	local events = {}
+
+	if meta:get_int("version") == 1 then
+		for i = 1, event_count do
+			events[i] = meta:get_string("event_nr"..i)
+		end
+	else
+		events = {"<can not show data from other version>"}
+	end
+
+	events = minetest.formspec_escape(table.concat(events, ",\n"))
+	minetest.show_formspec(playername, "meseconometer:fs_rawdata",
+		"formspec_version[3]"..
+		"size[10,10]"..
+		"button[7.5,7.75;2,0.75;btn_back;Back]"..
+		"button_exit[7.5,8.75;2,0.75;btn_close;Close]"..
+		"textarea[0.5,1;6.5,8.5;txtarea;Data:;"..events.."]"
+	)
 	open_formspecs[playername] = vector.new(pos)
 end
 
@@ -152,10 +182,18 @@ local function handle_formspec_main(pos, playername, fields)
 
 	if fields.btn_info then
 		show_formspec_info(pos, playername)
+	elseif fields.btn_rawdata then
+		show_formspec_rawdata(pos, playername)
 	end
 end
 
 local function handle_formspec_info(pos, playername, fields)
+	if fields.btn_back then
+		show_formspec_main(pos, playername)
+	end
+end
+
+local function handle_formspec_rawdata(pos, playername, fields)
 	if fields.btn_back then
 		show_formspec_main(pos, playername)
 	end
@@ -182,6 +220,8 @@ minetest.register_on_player_receive_fields(function(player, formname, fields)
 		handle_formspec_main(pos, playername, fields)
 	elseif formname == "meseconometer:fs_info" then
 		handle_formspec_info(pos, playername, fields)
+	elseif formname == "meseconometer:fs_rawdata" then
+		handle_formspec_rawdata(pos, playername, fields)
 	end
 
 	return true
