@@ -1,18 +1,23 @@
 
+-- pos of meseconometer for open formspec per playername
 local open_formspecs = {}
+-- names A-D for ports 1-4
 local abcd = {"A", "B", "C", "D", A = 1, B = 2, C = 3, D = 4}
 
+-- returns the port (1-4) for the given rule
 local function get_port_from_rule(rule)
 	-- trust me, this works
 	return rule.x + 2 - rule.z + math.abs(rule.z)
 end
 
+-- count in which globalstep we are
 local steptimer = 0
+ -- count modulo 2^32, to prevent the timer becoming unprecise over time
 local steptimer_max = 2^32
+-- tells whether we are currently in the process of calling globalsteps
 local currently_in_globalstep = false
 minetest.after(0, function()
 	-- increment the steptimer before all other globalsteps have run
-	-- also save whether we are currently in a globalstep
 	table.insert(minetest.registered_globalsteps, 1, function(dtime)
 		steptimer = (steptimer + 1) % steptimer_max
 		currently_in_globalstep = true
@@ -22,8 +27,21 @@ minetest.after(0, function()
 	end)
 end)
 
+-- meta in meseconometer node:
+-- "version": always 1
+-- "activate_port": activation port (1-4)
+-- "steptimer_start": value of steptimer for step 0
+-- "event_index": number of stored events = index of last event
+-- "event_nr"..i: a stored event; i is in [1;event_index]
+--
+-- events are stored each as json of this table: {step, port_abcd, event}
+-- step: the step of the event relative to steptimer_start
+--       has prefix "a" if not in a globalstep (abrv. for "after", I guess)
+-- port_abcd: the port (A-D) of the event
+-- event: name of the event
+
+-- removes all stored events and sets the timer 0 to now
 local function reset_meseconometer(pos, meta)
-	-- remove old data
 	local event_count = meta:get_int("event_index")
 	for i = 1, event_count do
 		meta:set_string("event_nr"..i, "")
@@ -32,6 +50,10 @@ local function reset_meseconometer(pos, meta)
 	meta:set_int("steptimer_start", steptimer)
 end
 
+-- stores a new event in a meseconometer
+-- @param meta: meta of the meseconometer
+-- @param port_abcd: port (A-D) of the event
+-- @param event: name of the event
 local function save_event(meta, port_abcd, event)
 	-- get the index and increment it
 	local index = meta:get_int("event_index") or 0
@@ -210,7 +232,7 @@ mesecon.register_node("meseconometer:meseconometer", {
 	end,
 })
 
--- handle foemspec stuff
+-- handle foemspec events
 minetest.register_on_player_receive_fields(function(player, formname, fields)
 	if formname ~= "meseconometer:fs" then
 		return
