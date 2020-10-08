@@ -112,8 +112,9 @@ local function show_formspec_main(pos, playername)
 	minetest.show_formspec(playername, "meseconometer:fs",
 		"formspec_version[3]"..
 		"size[10,10]"..
-		"button[7.5,7.75;2,0.75;btn_rawdata;Get Raw Data]"..
+		"button[7.5,5.75;2,0.75;btn_graph;Show Graph]"..
 		"button[7.5,6.75;2,0.75;btn_info;?]"..
+		"button[7.5,7.75;2,0.75;btn_rawdata;Get Raw Data]"..
 		"button_exit[7.5,8.75;2,0.75;btn_close;Close]"..
 		"label[7.5,1.25;Activation Port:]"..
 		"dropdown[7.5,1.5;2,0.5;activate_port;A,B,C,D;"..act_port.."]"..
@@ -172,6 +173,109 @@ local function show_formspec_rawdata(pos, playername)
 	open_formspecs[playername] = vector.new(pos)
 end
 
+-- show a pretty graph (TODO)
+local graph_line_thickness = 0.03125
+local graph_step_size = 0.125
+local graph_height = 1
+
+local function show_formspec_graph(pos, playername)
+	local meta = minetest.get_meta(pos)
+
+	local event_count = meta:get_int("event_index")
+	if not event_count or not (event_count >= 1) then
+		event_count = 0
+	end
+
+	if event_count < 1 or meta:get_int("version") ~= 1 then
+		show_formspec_main(pos, playername) --TODO
+		return
+	end
+
+	-- get the number of steps by looking at the last event
+	local last_event = minetest.parse_json(meta:get_string("event_nr"..event_count))
+	local num_steps = type(last_event) == "table" and
+			(tonumber(last_event[1]) or
+			type(last_event[1]) == "string" and tonumber(last_event[1]:sub(2, -1)))
+	if not num_steps then
+		show_formspec_main(pos, playername) --TODO
+		return
+	end
+
+	-- collect all events for port "A" (TODO: all ports)
+	-- these events are simplified {step: number, new_state: boolean}
+	local events = {{0, false}} -- initial event for beginning state (bool changed later)
+	local num_events_A = 1
+	for i = 1, event_count do
+		local event = minetest.parse_json(meta:get_string("event_nr"..i))
+		if type(event) == "table" and event[2] == "A" then
+			-- convert values in event from strings to bools and numbers
+			local step = tonumber(event[1])
+			if not step and type(event[1] == "string") then
+				step = tonumber(event[1]:sub(2, -1))
+				step = step and step + 0.5 -- after=>+0.5
+			end
+			local new_state
+			if event[3] == "on" then
+				new_state = true
+			elseif event[3] == "off" then
+				new_state = false
+			end
+			if step and new_state ~= nil then
+				num_events_A = num_events_A + 1
+				events[num_events_A] = {step, new_state}
+			end
+		end
+	end
+	if num_events_A < 2 then
+		show_formspec_main(pos, playername) --TODO
+		return
+	end
+	-- fix the initial state
+	events[1][2] = not events[2][2]
+	-- add an event for the end
+	num_events_A = num_events_A + 1
+	events[num_events_A] = {num_steps, not events[num_events_A - 1][2]}
+
+	local graph_fs_boxes = {}
+	-- box for white line
+	graph_fs_boxes[1] = "box[0,0;"..(num_steps * graph_step_size)..","..
+			graph_height..";#ffff]"
+	-- black boxes for not white line
+	for i = 1, #events - 1 do
+		-- box for state after event i
+		local state = events[i][2]
+		local step_start = events[i][1]
+		local step_end = events[i + 1][1]
+
+		local x = step_start * graph_step_size + graph_line_thickness
+		local y = state and graph_line_thickness or 0
+		local w = (step_end - step_start) * graph_step_size - graph_line_thickness
+		local h = graph_height - graph_line_thickness + (state and 0.1 or 0)
+
+		table.insert(graph_fs_boxes, string.format("box[%f,%f;%f,%f;#000f]", x, y, w, h))
+	end
+
+	-- additional space needed is total_width - scrcont_size; scroll_factor is 0.1
+	local scrbar_max = math.ceil(10 * math.max(num_steps * graph_step_size - 9, 0))
+	-- how much is scrcont_size of the whole space?
+	-- multiply this ratio by the number of scollbar values
+	local scrbar_thumbsize = math.floor(9 / (num_steps * graph_step_size) * (scrbar_max + 1))
+
+	minetest.show_formspec(playername, "meseconometer:fs_graph",
+		"formspec_version[3]"..
+		"size[10,10]"..
+		"box[0.5,1;9,6.5;#005]"..
+		"scrollbaroptions[max="..scrbar_max..";thumbsize="..scrbar_thumbsize.."]"..
+		"scroll_container[0.5,1;9,6.5;scrbar;horizontal;0.1]"..
+			table.concat(graph_fs_boxes)..
+		"scroll_container_end[]"..
+		"scrollbar[0.5,7.5;9,0.365;horizontal;scrbar;0]"..
+		"button[5.25,8.75;2,0.75;btn_back;Back]"..
+		"button_exit[7.5,8.75;2,0.75;btn_close;Close]"
+	)
+	open_formspecs[playername] = vector.new(pos)
+end
+
 -- handle foemspec events
 local function handle_formspec_main(pos, playername, fields)
 	local act_port = abcd[fields.activate_port]
@@ -184,6 +288,8 @@ local function handle_formspec_main(pos, playername, fields)
 		show_formspec_info(pos, playername)
 	elseif fields.btn_rawdata then
 		show_formspec_rawdata(pos, playername)
+	elseif fields.btn_graph then
+		show_formspec_graph(pos, playername)
 	end
 end
 
@@ -194,6 +300,12 @@ local function handle_formspec_info(pos, playername, fields)
 end
 
 local function handle_formspec_rawdata(pos, playername, fields)
+	if fields.btn_back then
+		show_formspec_main(pos, playername)
+	end
+end
+
+local function handle_formspec_graph(pos, playername, fields)
 	if fields.btn_back then
 		show_formspec_main(pos, playername)
 	end
@@ -222,6 +334,8 @@ minetest.register_on_player_receive_fields(function(player, formname, fields)
 		handle_formspec_info(pos, playername, fields)
 	elseif formname == "meseconometer:fs_rawdata" then
 		handle_formspec_rawdata(pos, playername, fields)
+	elseif formname == "meseconometer:fs_graph" then
+		handle_formspec_graph(pos, playername, fields)
 	end
 
 	return true
