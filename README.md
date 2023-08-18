@@ -11,6 +11,8 @@ Meseconometer
 
 Can be used to measure timings of mesecon signals in globalsteps.
 
+This repo is hosted at Codeberg: https://codeberg.org/Desour/meseconometer
+
 Usage / Example:
 - Place a meseconometer and open its formspec by rightclicking it.
 - Set the activation port (eg. A) and connect a mesecons receptor with this port (eg. a switch).
@@ -26,5 +28,4 @@ todo list:
 - Digiline support?
 - Display real time?
 - Allow to not reset the data every time the meseconometer is activated?
-- Get away from github.
 - Improve this list.
