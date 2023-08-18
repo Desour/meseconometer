@@ -1,3 +1,6 @@
+-- SPDX-FileCopyrightText: 2023 DS
+--
+-- SPDX-License-Identifier: Apache-2.0
 
 -- pos of meseconometer for open formspec per playername
 local open_formspecs = {}
